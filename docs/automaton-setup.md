@@ -11,8 +11,9 @@ key, funded anything or touched a blockchain.
 - Version: `@conway/automaton` 0.2.1, MIT licence
 - About 39k lines of TypeScript in `src/`, plus a small creator CLI in `packages/cli/`
 
-The upstream code is not vendored into this repo. Any customisations should go
-on a fork or a separate branch, so upstream stays clean and can be pulled.
+Fork: https://github.com/forbesreuben266-prog/automaton
+- `main`: kept identical to upstream. Only ever fast-forward it from Conway.
+- `custom`: all of our changes, including this log (`docs/SETUP-LOG.md`).
 
 ## Build environment (Claude Code cloud session)
 
@@ -30,7 +31,8 @@ on a fork or a separate branch, so upstream stays clean and can be pulled.
 | Install | `pnpm install --frozen-lockfile` | OK. Native `better-sqlite3` loads. |
 | Typecheck | `pnpm run typecheck` | OK, 0 errors |
 | Build | `pnpm run build` | OK. Produces `dist/index.js` and `packages/cli/dist/index.js` |
-| Tests | `HOME=<throwaway dir> npx vitest run` | TEST_RESULTS |
+| Tests (upstream, unmodified) | `HOME=<throwaway dir> npx vitest run` | 63 of 64 files passed (1,614 tests, 0 failures). `context-hardening.test.ts` **hangs indefinitely**; see Fix 1. |
+| Tests (`custom` branch, after Fix 1) | same | Running (see next commit) |
 
 Tests ran with `HOME` pointed at an empty throwaway folder, so they could not
 read or write a real `~/.automaton`.
@@ -94,3 +96,40 @@ Install warnings, both harmless:
 
 These defaults are far too generous for a first test. Proposed first-run
 values come later, at the launch-review step.
+
+## Fix 1: token counter hangs on long unbroken text (`custom` branch)
+
+**Symptom:** `src/__tests__/context-hardening.test.ts` never finishes.
+
+**Root cause:** `createTokenCounter()` in `src/memory/context-manager.ts` runs
+`js-tiktoken` BPE over the whole text. BPE cost is quadratic in the length of
+a single whitespace-free run.
+
+| Input | Time before fix |
+|---|---|
+| 5,000 × `x` | 2.5 s |
+| 20,000 × `x` | 36 s |
+| 500,000 × `x` (from the test) | hours, extrapolated |
+| 20,000 chars of normal prose | 3 ms |
+
+**Why it matters beyond the test:** turn token estimates use the full,
+untruncated tool output. One tool result containing a long base64 blob,
+minified JS, or a hex dump would freeze the agent's process, heartbeat
+included.
+
+**Fix:** any run of 64+ non-whitespace characters is removed before encoding
+and estimated at length ÷ 4 tokens. That matches the length ÷ 4 floor that
+`estimateTokens()` already applies. All other text is still encoded exactly.
+
+**Trade-off:** base64-like runs are now estimated at length ÷ 4, which is the
+same as upstream's existing fallback. Real BPE on base64 is closer to
+length ÷ 2.5, so context budgets may slightly under-count such content.
+
+| Input | Time after fix |
+|---|---|
+| 500,000 × `x` | ~0.05 s |
+| 500,000 chars of normal prose | ~75 ms |
+| 500,000 chars in 63-char chunks (worst case just under the cutoff) | ~3 s |
+
+Regression tests were added to `src/__tests__/memory/context-manager.test.ts`.
+This is a good candidate to offer upstream as a PR.
