@@ -133,3 +133,19 @@ length ÷ 2.5, so context budgets may slightly under-count such content.
 
 Regression tests were added to `src/__tests__/memory/context-manager.test.ts`.
 This is a good candidate to offer upstream as a PR.
+
+## Pre-launch security review (fork, branch `custom`)
+
+- `8769ee4` replaces Fix 1's length ÷ 4 estimate, which under-counted base64,
+  CJK and emoji by 3–5×, with chunked encoding plus a UTF-8 byte upper bound.
+  Full suite: 64 files, 1,655 tests pass.
+- `1231d6c` adds `docs/SECURITY-REVIEW.md` and draft hardened Docker
+  deployment files in `deploy/`.
+- Key findings:
+  - three automatic USDC top-up paths, two of them with no config switch
+  - `maxChildren` is ignored by `spawnChild`
+  - `maxInferenceDailyCents` never triggers
+  - the router prefers hard-coded GPT models, so an Anthropic-only setup
+    bills Conway credits
+  - `exec` can read the wallet key
+- Nothing deployed. The agent has not been started, and no wallet exists.
