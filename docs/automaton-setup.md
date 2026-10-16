@@ -32,7 +32,7 @@ Fork: https://github.com/forbesreuben266-prog/automaton
 | Typecheck | `pnpm run typecheck` | OK, 0 errors |
 | Build | `pnpm run build` | OK. Produces `dist/index.js` and `packages/cli/dist/index.js` |
 | Tests (upstream, unmodified) | `HOME=<throwaway dir> npx vitest run` | 63 of 64 files passed (1,614 tests, 0 failures). `context-hardening.test.ts` **hangs indefinitely**; see Fix 1. |
-| Tests (`custom` branch, after Fix 1) | same | Running (see next commit) |
+| Tests (`custom` branch, after Fix 1) | same | **All 64 files, 1,645 tests passed** in 112 s. Typecheck and build clean. |
 
 Tests ran with `HOME` pointed at an empty throwaway folder, so they could not
 read or write a real `~/.automaton`.
